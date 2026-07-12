@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "4000:4000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env.example
+    depends_on:
+      - db
+    networks:
+      - kronos_net
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kronos
+      POSTGRES_PASSWORD: kronos123
+      POSTGRES_DB: kronos_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kronos_net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - kronos_net
+
+  worker:
+    build: .
+    command: celery -A app.core.celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env.example
+    depends_on:
+      - redis
+      - db
+    networks:
+      - kronos_net
+
+  beat:
+    build: .
+    command: celery -A app.core.celery_app beat --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env.example
+    depends_on:
+      - redis
+      - db
+    networks:
+      - kronos_net
+
+  telemetry_worker:
+    build: .
+    command: python -m app.workers.telemetry_worker
+    volumes:
+      - .:/app
+    env_file:
+      - .env.example
+    depends_on:
+      - redis
+      - db
+    networks:
+      - kronos_net
+
+volumes:
+  postgres_data:
+
+networks:
+  kronos_net:
